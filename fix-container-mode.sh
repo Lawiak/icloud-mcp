@@ -33,14 +33,14 @@ echo "🌐 Option 2: Run with HTTP server mode (recommended for testing)"
 echo "This will keep running and you can test via HTTP:"
 
 echo ""
-echo "🔄 Starting container with HTTP mode..."
+echo "🔄 Starting container with HTTP mode (FIXED VERSION)..."
 docker run -d \
     --name $CONTAINER_NAME \
     --restart unless-stopped \
     --env-file .env \
     -p $MCP_SERVER_PORT:8080 \
-    -v $(pwd)/icloud_email_server_http.py:/app/icloud_email_server_http.py \
-    icloud-mcp-server:latest python icloud_email_server_http.py
+    -v $(pwd)/icloud_email_server_http_fixed.py:/app/icloud_email_server_http_fixed.py \
+    icloud-mcp-server:latest python icloud_email_server_http_fixed.py
 
 echo ""
 echo "🔄 Alternative: Run with persistent STDIO mode (for MCP clients):"
