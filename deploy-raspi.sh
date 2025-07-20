@@ -31,7 +31,14 @@ if [ -z "$ICLOUD_USERNAME" ] || [ -z "$ICLOUD_APP_PASSWORD" ]; then
 fi
 
 echo "📦 Building Docker image for ARM64 architecture..."
-docker buildx build --platform linux/arm64 -t icloud-mcp-server:$DOCKER_TAG .
+# Try simple Dockerfile first, fallback to complex one
+if [ -f "Dockerfile.simple" ]; then
+    echo "Using simplified Dockerfile..."
+    docker buildx build --platform linux/arm64 -f Dockerfile.simple -t icloud-mcp-server:$DOCKER_TAG .
+else
+    echo "Using standard Dockerfile..."
+    docker buildx build --platform linux/arm64 -t icloud-mcp-server:$DOCKER_TAG .
+fi
 
 echo "🛑 Stopping existing container (if running)..."
 docker stop $CONTAINER_NAME 2>/dev/null || true

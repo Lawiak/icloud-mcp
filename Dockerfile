@@ -1,20 +1,22 @@
 # Multi-stage build for iCloud Email MCP Server
-FROM python:3.12-slim as builder
-
-# Install uv for faster dependency management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+FROM python:3.12-slim AS builder
 
 # Set working directory
 WORKDIR /app
 
 # Copy project files
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml ./
 
-# Install dependencies
-RUN uv sync --frozen --no-cache
+# Create virtual environment and install dependencies
+RUN python -m venv .venv && \
+    .venv/bin/pip install --no-cache-dir --upgrade pip && \
+    .venv/bin/pip install --no-cache-dir \
+        fastmcp>=2.10.6 \
+        mcp>=1.12.0 \
+        email-validator>=2.0.0
 
 # Production stage
-FROM python:3.12-slim as runtime
+FROM python:3.12-slim AS runtime
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
