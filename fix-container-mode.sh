@@ -32,28 +32,6 @@ echo ""
 echo "🌐 Option 2: Run with HTTP server mode (recommended for testing)"
 echo "This will keep running and you can test via HTTP:"
 
-# Create a modified server that runs HTTP instead of STDIO
-cat > temp_http_server.py << 'EOF'
-#!/usr/bin/env python3
-
-import os
-from fastmcp import FastMCP
-from icloud_email_server_docker import *
-
-# Override the server to use HTTP instead of STDIO
-if __name__ == "__main__":
-    print("Starting iCloud Email MCP Server in HTTP mode...")
-    print(f"Username: {USERNAME}")
-    print(f"Server will run on port 8080")
-    
-    # Keep the server running with HTTP transport
-    import uvicorn
-    from fastmcp.server import create_server_app
-    
-    app = create_server_app(mcp)
-    uvicorn.run(app, host="0.0.0.0", port=8080)
-EOF
-
 echo ""
 echo "🔄 Starting container with HTTP mode..."
 docker run -d \
@@ -61,8 +39,17 @@ docker run -d \
     --restart unless-stopped \
     --env-file .env \
     -p $MCP_SERVER_PORT:8080 \
-    -v $(pwd)/temp_http_server.py:/app/temp_http_server.py \
-    icloud-mcp-server:latest python temp_http_server.py
+    -v $(pwd)/icloud_email_server_http.py:/app/icloud_email_server_http.py \
+    icloud-mcp-server:latest python icloud_email_server_http.py
+
+echo ""
+echo "🔄 Alternative: Run with persistent STDIO mode (for MCP clients):"
+echo "docker run -d \\"
+echo "    --name ${CONTAINER_NAME}-stdio \\"
+echo "    --restart unless-stopped \\"
+echo "    --env-file .env \\"
+echo "    -v \$(pwd)/icloud_email_server_stdio_persistent.py:/app/icloud_email_server_stdio_persistent.py \\"
+echo "    icloud-mcp-server:latest python icloud_email_server_stdio_persistent.py"
 
 sleep 3
 
@@ -79,10 +66,11 @@ echo "🧪 Test the server:"
 echo "curl http://localhost:$MCP_SERVER_PORT"
 echo ""
 
-# Clean up
-rm -f temp_http_server.py
-
 echo "✅ Done! Container should now stay running."
 echo ""
-echo "💡 For MCP client use, you may need STDIO mode:"
-echo "   docker run -i --env-file .env icloud-mcp-server:latest"
+echo "🧪 Test the HTTP server:"
+echo "   curl http://localhost:$MCP_SERVER_PORT/"
+echo "   curl http://localhost:$MCP_SERVER_PORT/health"
+echo "   curl http://localhost:$MCP_SERVER_PORT/test"
+echo ""
+echo "💡 For MCP client use, run the STDIO version above"
