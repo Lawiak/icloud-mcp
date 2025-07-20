@@ -156,7 +156,7 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
                             body = "Could not decode body"
                     
                     emails.append({
-                        "id": email_id.decode(),
+                        "id": email_id.decode() if isinstance(email_id, bytes) else str(email_id),
                         "from": email_message.get("From", "Unknown"),
                         "to": email_message.get("To", "Unknown"),
                         "subject": subject,
