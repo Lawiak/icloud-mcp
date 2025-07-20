@@ -147,13 +147,25 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
                         for part in email_message.walk():
                             if part.get_content_type() == "text/plain":
                                 try:
-                                    body = part.get_payload(decode=True).decode()
+                                    payload = part.get_payload(decode=True)
+                                    if isinstance(payload, bytes):
+                                        body = payload.decode()
+                                    elif isinstance(payload, str):
+                                        body = payload
+                                    else:
+                                        body = str(payload) if payload is not None else "Empty body"
                                     break
                                 except:
                                     body = "Could not decode body"
                     else:
                         try:
-                            body = email_message.get_payload(decode=True).decode()
+                            payload = email_message.get_payload(decode=True)
+                            if isinstance(payload, bytes):
+                                body = payload.decode()
+                            elif isinstance(payload, str):
+                                body = payload
+                            else:
+                                body = str(payload) if payload is not None else "Empty body"
                         except:
                             body = "Could not decode body"
                     
