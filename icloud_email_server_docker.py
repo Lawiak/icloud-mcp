@@ -125,7 +125,9 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
         emails = []
         for email_id in reversed(recent_emails):
             try:
-                typ, msg_data = email_manager.imap_connection.fetch(email_id, '(RFC822)')
+                # Ensure email_id is properly decoded for IMAP fetch
+                fetch_id = email_id.decode() if isinstance(email_id, bytes) else str(email_id)
+                typ, msg_data = email_manager.imap_connection.fetch(fetch_id, '(RFC822)')
                 if msg_data and msg_data[0] and msg_data[0][1]:
                     email_body = msg_data[0][1]
                     email_message = email.message_from_bytes(email_body)
@@ -164,7 +166,8 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
                         "body": body[:200] + "..." if len(body) > 200 else body
                     })
             except Exception as e:
-                emails.append({"error": f"Error reading email {email_id}: {str(e)}"})
+                email_id_str = email_id.decode() if isinstance(email_id, bytes) else str(email_id)
+                emails.append({"error": f"Error reading email {email_id_str}: {str(e)}"})
         
         email_manager.disconnect()
         return emails
