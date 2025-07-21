@@ -33,9 +33,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
-COPY icloud_email_server_docker.py ./
-COPY icloud_email_server_stdio_working.py ./
-COPY test_email.py ./
+COPY server.py ./
 
 # Set proper ownership
 RUN chown -R mcpuser:mcpuser /app
@@ -48,10 +46,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "from icloud_email_server_docker import test_email_connection; print('Health check passed')" || exit 1
+    CMD python -c "from server import test_email_connection; print('Health check passed')" || exit 1
 
 # Expose the port (MCP typically uses stdio, but we'll make it available)
 EXPOSE 8080
 
 # Start the MCP server
-CMD ["python", "icloud_email_server_docker.py"]
+CMD ["python", "server.py"]

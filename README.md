@@ -1,175 +1,159 @@
 # iCloud Email MCP Server
 
-A Model Context Protocol (MCP) server that provides iCloud email functionality for AI assistants like Claude.
+A Model Context Protocol (MCP) server that enables Claude Desktop to interact with iCloud email accounts. This server provides full email functionality including reading, sending, and managing emails through your iCloud account.
 
 ## Features
 
-- 📧 Read emails from any iCloud folder
-- 📤 Send emails with CC support  
-- 📁 Create and manage email folders
-- 🔍 Search emails
-- 🐳 Docker support for easy deployment
-- 🍓 Raspberry Pi compatible
+- **Read emails** from any folder (INBOX, Sent, etc.)
+- **Send emails** with support for CC recipients
+- **List email folders** and navigate mailboxes
+- **Create new folders** for email organization
+- **Move emails** between folders
+- **Search emails** across your mailbox
+- **Test connections** and server health
 
-## Quick Start
+## Prerequisites
 
-### Local Development
+- **iCloud account** with App-Specific Password enabled
+- **Docker** installed on your system
+- **Claude Desktop** configured for MCP servers
 
-1. **Clone and setup:**
+## Setup
+
+### 1. Generate iCloud App-Specific Password
+
+1. Sign in to [appleid.apple.com](https://appleid.apple.com)
+2. Go to **Sign-In and Security** > **App-Specific Passwords**
+3. Generate a new password for "Email MCP Server"
+4. Save this password - you'll need it for configuration
+
+### 2. Clone and Configure
+
 ```bash
-cd icloud-mcp-server
-uv sync
+git clone https://github.com/Lawiak/icloud-mcp.git
+cd icloud-mcp
 ```
 
-2. **Run locally:**
-```bash
-uv run python icloud_email_server_clean.py
-```
-
-### Docker Deployment
-
-1. **Copy environment file:**
+Create your environment file:
 ```bash
 cp .env.example .env
+nano .env
 ```
 
-2. **Edit `.env` with your credentials:**
-```bash
+Configure your credentials in `.env`:
+```env
 ICLOUD_USERNAME=your.email@icloud.com
 ICLOUD_APP_PASSWORD=your-app-specific-password
-MCP_SERVER_PORT=8081
 ```
 
-3. **Deploy:**
+### 3. Build Docker Container
+
 ```bash
-./deploy-raspi.sh
+docker build -t icloud-mcp-server:latest .
 ```
 
-### Raspberry Pi Setup
+### 4. Configure Claude Desktop
 
-**Prerequisites:**
-- Docker and Docker Buildx installed
-- ARM64 Raspberry Pi (Pi 4 or newer recommended)
+Edit your Claude Desktop configuration file:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-**Quick deployment:**
-```bash
-# On your Raspberry Pi
-git clone https://github.com/YOUR_USERNAME/icloud-mcp.git
-cd icloud-mcp
-
-# Check for available ports
-./check-ports.sh
-
-# Setup configuration
-cp .env.example .env
-# Edit .env with your credentials and chosen port
-nano .env
-
-# Deploy
-./deploy-raspi.sh
-```
-
-## Configuration
-
-### iCloud App-Specific Password
-
-1. Go to [Apple ID Account Page](https://appleid.apple.com/)
-2. Sign in with your Apple ID
-3. Go to "App-Specific Passwords"
-4. Generate a new password for "Mail"
-5. Use this password in your `.env` file
-
-### Claude Desktop Integration
-
-Add to your `claude_desktop_config.json`:
+Add the MCP server configuration:
 
 ```json
 {
   "mcpServers": {
     "icloud-email": {
-      "command": "/path/to/icloud-mcp-server/start_server.sh",
-      "args": []
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--env-file", "/path/to/your/icloud-mcp/.env",
+        "icloud-mcp-server:latest",
+        "python", "server.py"
+      ]
     }
   }
 }
 ```
 
-For Docker deployment, you can connect via stdio or HTTP transport.
-
-## Available Tools
-
-| Function | Description |
-|----------|-------------|
-| `get_server_info()` | Get server information |
-| `test_email_connection()` | Test iCloud connection |
-| `get_email_folders()` | List all email folders |
-| `read_emails(folder, limit)` | Read emails from a folder |
-| `send_email(to, subject, body, cc)` | Send an email |
-| `create_folder(folder_name)` | Create a new folder |
-| `move_email(email_id, source, dest)` | Move email between folders |
-
-## Docker Commands
-
-```bash
-# Build for ARM64 (Raspberry Pi)
-docker buildx build --platform linux/arm64 -t icloud-mcp-server .
-
-# Run with environment file
-docker run -d --name icloud-mcp-server --env-file .env -p 8081:8080 icloud-mcp-server
-
-# Check logs
-docker logs -f icloud-mcp-server
-
-# Stop container
-docker stop icloud-mcp-server
+**For remote deployment** (e.g., Raspberry Pi), use SSH:
+```json
+{
+  "mcpServers": {
+    "icloud-email": {
+      "command": "ssh",
+      "args": [
+        "user@your-server-ip",
+        "docker", "run", "-i", "--rm",
+        "--env-file", "/path/to/icloud-mcp/.env",
+        "icloud-mcp-server:latest",
+        "python", "server.py"
+      ]
+    }
+  }
+}
 ```
+
+### 5. Restart Claude Desktop
+
+Close and restart Claude Desktop to load the new MCP server configuration.
+
+## Usage
+
+Once configured, you can ask Claude Desktop to:
+
+- "Read my latest emails"
+- "Send an email to john@example.com with subject 'Meeting' and message 'Hello!'"
+- "Show me my email folders"
+- "Move email ID 123 from INBOX to Archive"
+- "Create a new folder called 'Projects'"
+
+## Server Configuration
+
+### iCloud Email Settings
+- **IMAP Server**: imap.mail.me.com:993 (SSL)
+- **SMTP Server**: smtp.mail.me.com:587 (StartTLS)
+
+### Environment Variables
+- `ICLOUD_USERNAME`: Your iCloud email address
+- `ICLOUD_APP_PASSWORD`: App-specific password from Apple ID
 
 ## Troubleshooting
 
 ### Connection Issues
-- Verify your iCloud credentials
-- Ensure 2FA is enabled and you're using an app-specific password
-- Check network connectivity to iCloud servers
+1. Verify your App-Specific Password is correct
+2. Ensure two-factor authentication is enabled on your Apple ID
+3. Check that the Docker container can access the internet
 
-### Docker Issues
-- Ensure Docker has sufficient resources (512MB RAM minimum)
-- Check container logs: `docker logs icloud-mcp-server`
-- Verify environment variables are set correctly
+### Claude Desktop Issues
+1. Check Claude Desktop logs for connection errors
+2. Verify the file paths in your configuration are correct
+3. Ensure Docker is running and accessible
 
-### Raspberry Pi Performance
-- Use a fast SD card (Class 10 or better)
-- Ensure adequate cooling
-- Monitor resource usage: `docker stats`
+### Testing the Server
+```bash
+# Test Docker container directly
+docker run --rm --env-file .env icloud-mcp-server:latest python -c "
+from server import test_email_connection
+print('Connection test completed')
+"
+```
 
 ## Security Notes
 
-- Never commit your `.env` file with real credentials
-- Use app-specific passwords, not your main Apple ID password
-- Run the container as non-root user (handled automatically)
-- Consider using Docker secrets for production deployments
+- App-Specific Passwords are safer than your main iCloud password
+- Keep your `.env` file secure and never commit it to version control
+- The Docker container runs as a non-root user for security
+- All email communication uses encrypted connections (SSL/TLS)
 
 ## Architecture
 
-```mermaid
-graph LR
-    A[Claude AI<br/>Client] --> B[MCP Server<br/>Docker]
-    B --> C[iCloud Email<br/>IMAP/SMTP]
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+This MCP server uses:
+- **FastMCP** for Model Context Protocol implementation
+- **Python imaplib/smtplib** for email operations
+- **Docker** for containerized deployment
+- **STDIO transport** for Claude Desktop communication
 
 ## License
 
-MIT License - See LICENSE file for details.
-
-## Acknowledgments
-
-- Built with [FastMCP](https://github.com/jlowin/fastmcp)
-- Uses the [Model Context Protocol](https://modelcontextprotocol.io/)
-- Supports [Claude Desktop](https://claude.ai/)
+This project is open source and available under the MIT License.
