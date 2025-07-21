@@ -255,6 +255,159 @@ def send_email(to: str, subject: str, body: str, cc: Optional[str] = None) -> Di
         return {"status": "error", "message": str(e)}
 
 @mcp.tool()
+def send_email_with_attachments(
+    to: str, 
+    subject: str, 
+    body: str, 
+    cc: Optional[str] = None,
+    attachments: Optional[List[Dict[str, str]]] = None
+) -> Dict[str, str]:
+    """Send an email with optional attachments.
+    
+    Args:
+        to: Recipient email address
+        subject: Email subject
+        body: Email body text
+        cc: CC recipients (comma-separated)
+        attachments: List of attachment objects with keys:
+            - 'content': Base64-encoded file content
+            - 'filename': Name of the file
+            - 'content_type': MIME type (optional, will be guessed if not provided)
+    
+    Example attachment format:
+    [{"content": "base64_encoded_data", "filename": "document.pdf", "content_type": "application/pdf"}]
+    """
+    try:
+        import base64
+        import mimetypes
+        from email.mime.base import MIMEBase
+        from email.mime.application import MIMEApplication
+        from email import encoders
+        
+        email_manager.connect_smtp()
+        
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = USERNAME
+        msg['To'] = to
+        msg['Subject'] = subject
+        
+        if cc:
+            msg['Cc'] = cc
+        
+        # Add body to email
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Process attachments if provided
+        if attachments:
+            for attachment in attachments:
+                if not attachment.get('content') or not attachment.get('filename'):
+                    continue
+                    
+                try:
+                    # Decode base64 content
+                    file_data = base64.b64decode(attachment['content'])
+                    filename = attachment['filename']
+                    
+                    # Determine MIME type
+                    content_type = attachment.get('content_type')
+                    if not content_type:
+                        content_type, _ = mimetypes.guess_type(filename)
+                        if not content_type:
+                            content_type = 'application/octet-stream'
+                    
+                    # Create attachment
+                    if content_type.startswith('text/'):
+                        # Text attachment
+                        attachment_part = MIMEText(file_data.decode('utf-8', errors='ignore'))
+                        attachment_part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
+                    else:
+                        # Binary attachment
+                        attachment_part = MIMEApplication(file_data, _subtype=content_type.split('/')[-1])
+                        attachment_part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
+                    
+                    msg.attach(attachment_part)
+                    
+                except Exception as e:
+                    # Log attachment error but continue with email
+                    print(f"Warning: Could not process attachment {attachment.get('filename', 'unknown')}: {str(e)}")
+        
+        # Send email
+        recipients = [to]
+        if cc:
+            recipients.extend([addr.strip() for addr in cc.split(',')])
+        
+        email_manager.smtp_connection.send_message(msg, to_addrs=recipients)
+        email_manager.disconnect()
+        
+        attachment_count = len(attachments) if attachments else 0
+        message = f"Email sent to {to}"
+        if attachment_count > 0:
+            message += f" with {attachment_count} attachment{'s' if attachment_count > 1 else ''}"
+        
+        return {"status": "success", "message": message}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+def send_email_with_file_paths(
+    to: str, 
+    subject: str, 
+    body: str, 
+    cc: Optional[str] = None,
+    file_paths: Optional[List[str]] = None
+) -> Dict[str, str]:
+    """Send an email with attachments from local file paths.
+    
+    Args:
+        to: Recipient email address
+        subject: Email subject
+        body: Email body text
+        cc: CC recipients (comma-separated)
+        file_paths: List of file paths to attach
+    
+    Note: Files must be accessible to the Docker container.
+    For Docker usage, files should be in mounted volumes.
+    """
+    try:
+        import base64
+        import os
+        
+        attachments = []
+        
+        # Convert file paths to base64 attachments
+        if file_paths:
+            for file_path in file_paths:
+                try:
+                    if not os.path.exists(file_path):
+                        print(f"Warning: File {file_path} does not exist, skipping")
+                        continue
+                        
+                    if os.path.getsize(file_path) > 25 * 1024 * 1024:  # 25MB limit
+                        print(f"Warning: File {file_path} is too large (>25MB), skipping")
+                        continue
+                    
+                    with open(file_path, 'rb') as f:
+                        file_data = f.read()
+                        encoded_content = base64.b64encode(file_data).decode('utf-8')
+                        filename = os.path.basename(file_path)
+                        
+                        attachments.append({
+                            'content': encoded_content,
+                            'filename': filename
+                        })
+                        
+                except Exception as e:
+                    print(f"Warning: Could not process file {file_path}: {str(e)}")
+        
+        # Use the existing attachment function
+        return send_email_with_attachments(to, subject, body, cc, attachments)
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@mcp.tool()
 def mark_email_read(email_id: str, folder: str = "INBOX") -> Dict[str, str]:
     """Mark a specific email as read"""
     try:
