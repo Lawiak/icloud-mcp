@@ -130,10 +130,15 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
         emails = []
         for email_id in reversed(recent_emails):
             try:
-                # Decode email_id and use BODY[] for reliable fetching
+                # Decode email_id and use BODY.PEEK[] to preserve read status
                 fetch_id = email_id.decode() if isinstance(email_id, bytes) else str(email_id)
-                typ, msg_data = email_manager.imap_connection.fetch(fetch_id, '(BODY[])')
+                typ, msg_data = email_manager.imap_connection.fetch(fetch_id, '(FLAGS BODY.PEEK[])')
                 if msg_data and len(msg_data) > 0 and isinstance(msg_data[0], tuple) and len(msg_data[0]) > 1:
+                    
+                    # Extract flags and email body from response  
+                    flags_info = msg_data[0][0] if msg_data[0][0] else b''
+                    is_unread = b'\\Seen' not in flags_info
+                    
                     email_body = msg_data[0][1]
                     if isinstance(email_body, bytes) and len(email_body) > 10:  # Ensure we have actual content
                         email_message = email.message_from_bytes(email_body)
@@ -200,7 +205,8 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
                         "to": email_message.get("To", "Unknown"),
                         "subject": subject,
                         "date": email_message.get("Date", "Unknown"),
-                        "body": body[:200] + "..." if len(body) > 200 else body
+                        "body": body[:200] + "..." if len(body) > 200 else body,
+                        "unread": is_unread
                     })
             except Exception as e:
                 # Handle email_id for error display
@@ -247,6 +253,146 @@ def send_email(to: str, subject: str, body: str, cc: Optional[str] = None) -> Di
         
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+def mark_email_read(email_id: str, folder: str = "INBOX") -> Dict[str, str]:
+    """Mark a specific email as read"""
+    try:
+        email_manager.connect_imap()
+        email_manager.imap_connection.select(folder)
+        
+        # Add the \Seen flag to mark as read
+        email_manager.imap_connection.store(email_id, '+FLAGS', '\\Seen')
+        
+        email_manager.disconnect()
+        return {"status": "success", "message": f"Email {email_id} marked as read"}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+def mark_email_unread(email_id: str, folder: str = "INBOX") -> Dict[str, str]:
+    """Mark a specific email as unread"""
+    try:
+        email_manager.connect_imap()
+        email_manager.imap_connection.select(folder)
+        
+        # Remove the \Seen flag to mark as unread
+        email_manager.imap_connection.store(email_id, '-FLAGS', '\\Seen')
+        
+        email_manager.disconnect()
+        return {"status": "success", "message": f"Email {email_id} marked as unread"}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+def get_unread_emails(folder: str = "INBOX", limit: int = 10) -> List[Dict[str, Any]]:
+    """Read only unread emails from specified folder"""
+    try:
+        email_manager.connect_imap()
+        email_manager.imap_connection.select(folder)
+        
+        # Search for unread emails only
+        typ, messages = email_manager.imap_connection.search(None, 'UNSEEN')
+        if not messages[0]:
+            return []
+            
+        email_ids = messages[0].split()
+        
+        # Get recent unread emails (limited by limit parameter)
+        recent_emails = email_ids[-limit:] if len(email_ids) > limit else email_ids
+        
+        emails = []
+        for email_id in reversed(recent_emails):
+            try:
+                # Decode email_id and use BODY.PEEK[] to preserve unread status
+                fetch_id = email_id.decode() if isinstance(email_id, bytes) else str(email_id)
+                typ, msg_data = email_manager.imap_connection.fetch(fetch_id, '(FLAGS BODY.PEEK[])')
+                if msg_data and len(msg_data) > 0 and isinstance(msg_data[0], tuple) and len(msg_data[0]) > 1:
+                    email_body = msg_data[0][1]
+                    if isinstance(email_body, bytes) and len(email_body) > 10:
+                        email_message = email.message_from_bytes(email_body)
+                    else:
+                        continue
+                    
+                    # Decode subject with proper error handling
+                    subject = "No Subject"
+                    if email_message["Subject"]:
+                        try:
+                            decoded_header = decode_header(email_message["Subject"])
+                            if decoded_header and decoded_header[0][0]:
+                                subject = decoded_header[0][0]
+                                if isinstance(subject, bytes):
+                                    subject = subject.decode()
+                        except:
+                            subject = str(email_message["Subject"])
+                    
+                    # Get email content with robust handling
+                    body = ""
+                    try:
+                        if email_message.is_multipart():
+                            for part in email_message.walk():
+                                if part.get_content_type() == "text/plain":
+                                    try:
+                                        payload = part.get_payload(decode=True)
+                                        if payload is None:
+                                            continue
+                                        elif isinstance(payload, bytes):
+                                            body = payload.decode('utf-8', errors='ignore')
+                                        elif isinstance(payload, str):
+                                            body = payload
+                                        else:
+                                            body = str(payload)
+                                        break
+                                    except:
+                                        continue
+                        else:
+                            try:
+                                payload = email_message.get_payload(decode=True)
+                                if payload is None:
+                                    body = "Empty message"
+                                elif isinstance(payload, bytes):
+                                    body = payload.decode('utf-8', errors='ignore')
+                                elif isinstance(payload, str):
+                                    body = payload
+                                else:
+                                    body = str(payload)
+                            except:
+                                body = "Could not decode message"
+                    except:
+                        body = "Error processing message content"
+                    
+                    # Handle email_id for display
+                    display_id = email_id
+                    if isinstance(email_id, bytes):
+                        display_id = email_id.decode('utf-8', errors='ignore')
+                    else:
+                        display_id = str(email_id)
+                    
+                    emails.append({
+                        "id": display_id,
+                        "from": email_message.get("From", "Unknown"),
+                        "to": email_message.get("To", "Unknown"),
+                        "subject": subject,
+                        "date": email_message.get("Date", "Unknown"),
+                        "body": body[:200] + "..." if len(body) > 200 else body,
+                        "unread": True  # Mark as unread for clarity
+                    })
+            except Exception as e:
+                # Handle email_id for error display
+                display_id = email_id
+                if isinstance(email_id, bytes):
+                    display_id = email_id.decode('utf-8', errors='ignore')
+                else:
+                    display_id = str(email_id)
+                emails.append({"error": f"Error reading email {display_id}: {str(e)}"})
+        
+        email_manager.disconnect()
+        return emails
+        
+    except Exception as e:
+        return [{"error": str(e)}]
 
 if __name__ == "__main__":
     mcp.run()
