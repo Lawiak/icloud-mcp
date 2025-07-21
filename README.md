@@ -4,12 +4,14 @@ A Model Context Protocol (MCP) server that enables Claude Desktop to interact wi
 
 ## Features
 
-- **Read emails** from any folder (INBOX, Sent, etc.)
+- **Read emails** from any folder while preserving unread status
 - **Send emails** with support for CC recipients
 - **List email folders** and navigate mailboxes
 - **Create new folders** for email organization
 - **Move emails** between folders
 - **Search emails** across your mailbox
+- **Manage read/unread status** explicitly when desired
+- **Filter unread emails** specifically
 - **Test connections** and server health
 
 ## Prerequisites
@@ -102,11 +104,18 @@ Close and restart Claude Desktop to load the new MCP server configuration.
 
 Once configured, you can ask Claude Desktop to:
 
-- "Read my latest emails"
+- "Read my latest emails" (preserves unread status)
+- "Show me only my unread emails"  
 - "Send an email to john@example.com with subject 'Meeting' and message 'Hello!'"
+- "Mark email ID 123 as read"
+- "Mark email ID 456 as unread"
 - "Show me my email folders"
 - "Move email ID 123 from INBOX to Archive"
 - "Create a new folder called 'Projects'"
+
+### Unread Status Management
+
+**Important**: This server preserves your email's unread status by default. When Claude Desktop reads emails, they remain unread in your iCloud account unless you explicitly ask to mark them as read.
 
 ## Server Configuration
 
