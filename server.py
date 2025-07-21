@@ -673,22 +673,39 @@ def get_unread_emails(folder: str = "INBOX", limit: int = 10) -> List[Dict[str, 
     except Exception as e:
         return [{"error": str(e)}]
 
+def _quote_folder_name(folder_name: str) -> str:
+    """Quote folder names that contain spaces or special characters for IMAP commands"""
+    if ' ' in folder_name or '"' in folder_name or any(c in folder_name for c in ['(', ')', '{', '}', '%', '*']):
+        # Escape any existing quotes and wrap in quotes
+        escaped_name = folder_name.replace('"', '\\"')
+        return f'"{escaped_name}"'
+    return folder_name
+
 @mcp.tool()
 def move_email(email_id: str, source_folder: str, destination_folder: str) -> Dict[str, str]:
     """Move a single email from one folder to another"""
     try:
         email_manager.connect_imap()
         
+        # Quote folder names if they contain spaces or special characters
+        quoted_source = _quote_folder_name(source_folder)
+        quoted_destination = _quote_folder_name(destination_folder)
+        
         # Select source folder
-        email_manager.imap_connection.select(source_folder)
+        typ, select_result = email_manager.imap_connection.select(quoted_source)
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to select source folder '{source_folder}'"}
         
         # Copy the email to destination folder
-        typ, copy_result = email_manager.imap_connection.copy(email_id, destination_folder)
+        typ, copy_result = email_manager.imap_connection.copy(email_id, quoted_destination)
         if typ != 'OK':
-            return {"status": "error", "message": f"Failed to copy email {email_id} to {destination_folder}"}
+            error_msg = copy_result[0].decode() if copy_result and copy_result[0] else "Unknown error"
+            return {"status": "error", "message": f"Failed to copy email {email_id} to {destination_folder}: {error_msg}"}
         
         # Mark the original email as deleted
-        email_manager.imap_connection.store(email_id, '+FLAGS', '\\Deleted')
+        typ, store_result = email_manager.imap_connection.store(email_id, '+FLAGS', '\\Deleted')
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to mark email {email_id} for deletion"}
         
         # Expunge to actually remove the email from source folder
         email_manager.imap_connection.expunge()
@@ -705,8 +722,14 @@ def move_emails(email_ids: List[str], source_folder: str, destination_folder: st
     try:
         email_manager.connect_imap()
         
+        # Quote folder names if they contain spaces or special characters
+        quoted_source = _quote_folder_name(source_folder)
+        quoted_destination = _quote_folder_name(destination_folder)
+        
         # Select source folder
-        email_manager.imap_connection.select(source_folder)
+        typ, select_result = email_manager.imap_connection.select(quoted_source)
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to select source folder '{source_folder}'"}
         
         moved_count = 0
         failed_emails = []
@@ -714,11 +737,14 @@ def move_emails(email_ids: List[str], source_folder: str, destination_folder: st
         for email_id in email_ids:
             try:
                 # Copy the email to destination folder
-                typ, copy_result = email_manager.imap_connection.copy(email_id, destination_folder)
+                typ, copy_result = email_manager.imap_connection.copy(email_id, quoted_destination)
                 if typ == 'OK':
                     # Mark the original email as deleted
-                    email_manager.imap_connection.store(email_id, '+FLAGS', '\\Deleted')
-                    moved_count += 1
+                    typ_store, store_result = email_manager.imap_connection.store(email_id, '+FLAGS', '\\Deleted')
+                    if typ_store == 'OK':
+                        moved_count += 1
+                    else:
+                        failed_emails.append(email_id)
                 else:
                     failed_emails.append(email_id)
             except Exception as e:
