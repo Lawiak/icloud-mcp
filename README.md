@@ -5,7 +5,7 @@ A Model Context Protocol (MCP) server that enables Claude Desktop to interact wi
 ## Features
 
 - **Read emails** from any folder while preserving unread status
-- **Send emails** with support for CC recipients
+- **Send emails** with support for CC recipients and attachments
 - **List email folders** and navigate mailboxes
 - **Create new folders** for email organization
 - **Move emails** between folders
@@ -109,6 +109,8 @@ Once configured, you can ask Claude Desktop to:
 - "Read email ID 123 in full" (complete content of specific email)
 - "Show me only my unread emails"  
 - "Send an email to john@example.com with subject 'Meeting' and message 'Hello!'"
+- "Send an email with attachments" (using base64-encoded content)
+- "Send an email with files from local paths" (if files are accessible)
 - "Mark email ID 123 as read"
 - "Mark email ID 456 as unread"
 - "Show me my email folders"
@@ -125,6 +127,21 @@ Once configured, you can ask Claude Desktop to:
 - Complete recipient details (To, CC, BCC)
 - Additional email headers
 - All content without truncation
+
+### Email Attachments
+
+**Sending Attachments**: The server supports multiple methods for sending attachments:
+
+1. **Base64-encoded content**: For programmatic use or when you have file data
+   - Supports all file types (PDFs, images, documents, etc.)
+   - 25MB size limit per attachment
+   - Automatic MIME type detection
+
+2. **Local file paths**: For files accessible to the Docker container
+   - Requires files to be in mounted volumes for Docker deployment
+   - Automatic file validation and encoding
+
+**Attachment formats**: Text files, PDFs, images, office documents, archives, etc.
 
 ### Unread Status Management
 
