@@ -111,8 +111,8 @@ def get_email_folders() -> List[str]:
         return [f"Error: {str(e)}"]
 
 @mcp.tool()
-def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
-    """Read emails from specified folder"""
+def read_emails(folder: str = "INBOX", limit: int = 5, full_content: bool = False) -> List[Dict[str, Any]]:
+    """Read emails from specified folder. Set full_content=True to get complete email bodies without truncation."""
     try:
         email_manager.connect_imap()
         email_manager.imap_connection.select(folder)
@@ -205,7 +205,7 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
                         "to": email_message.get("To", "Unknown"),
                         "subject": subject,
                         "date": email_message.get("Date", "Unknown"),
-                        "body": body[:200] + "..." if len(body) > 200 else body,
+                        "body": body if full_content else (body[:200] + "..." if len(body) > 200 else body),
                         "unread": is_unread
                     })
             except Exception as e:
@@ -285,6 +285,132 @@ def mark_email_unread(email_id: str, folder: str = "INBOX") -> Dict[str, str]:
         
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+def read_full_email(email_id: str, folder: str = "INBOX") -> Dict[str, Any]:
+    """Read the complete content of a specific email without truncation"""
+    try:
+        email_manager.connect_imap()
+        email_manager.imap_connection.select(folder)
+        
+        # Fetch the specific email with full content (preserve unread status)
+        typ, msg_data = email_manager.imap_connection.fetch(email_id, '(FLAGS BODY.PEEK[])')
+        
+        if not (msg_data and len(msg_data) > 0 and isinstance(msg_data[0], tuple) and len(msg_data[0]) > 1):
+            return {"error": f"Email {email_id} not found or could not be retrieved"}
+        
+        # Extract flags and email body
+        flags_info = msg_data[0][0] if msg_data[0][0] else b''
+        is_unread = b'\\Seen' not in flags_info
+        
+        email_body = msg_data[0][1]
+        if not (isinstance(email_body, bytes) and len(email_body) > 10):
+            return {"error": f"Email {email_id} has no valid content"}
+        
+        email_message = email.message_from_bytes(email_body)
+        
+        # Decode subject with proper error handling
+        subject = "No Subject"
+        if email_message["Subject"]:
+            try:
+                decoded_header = decode_header(email_message["Subject"])
+                if decoded_header and decoded_header[0][0]:
+                    subject = decoded_header[0][0]
+                    if isinstance(subject, bytes):
+                        subject = subject.decode()
+            except:
+                subject = str(email_message["Subject"])
+        
+        # Get FULL email content without truncation
+        body = ""
+        html_body = ""
+        attachments = []
+        
+        try:
+            if email_message.is_multipart():
+                for part in email_message.walk():
+                    content_type = part.get_content_type()
+                    
+                    if content_type == "text/plain":
+                        try:
+                            payload = part.get_payload(decode=True)
+                            if payload and isinstance(payload, bytes):
+                                body = payload.decode('utf-8', errors='ignore')
+                            elif payload and isinstance(payload, str):
+                                body = payload
+                        except:
+                            continue
+                    
+                    elif content_type == "text/html":
+                        try:
+                            payload = part.get_payload(decode=True)
+                            if payload and isinstance(payload, bytes):
+                                html_body = payload.decode('utf-8', errors='ignore')
+                            elif payload and isinstance(payload, str):
+                                html_body = payload
+                        except:
+                            continue
+                    
+                    # Handle attachments
+                    elif part.get_content_disposition() and "attachment" in part.get_content_disposition():
+                        filename = part.get_filename()
+                        if filename:
+                            attachments.append({
+                                "filename": filename,
+                                "content_type": content_type,
+                                "size": len(part.get_payload(decode=True)) if part.get_payload(decode=True) else 0
+                            })
+            else:
+                # Single part message
+                try:
+                    payload = email_message.get_payload(decode=True)
+                    if payload and isinstance(payload, bytes):
+                        body = payload.decode('utf-8', errors='ignore')
+                    elif payload and isinstance(payload, str):
+                        body = payload
+                except:
+                    body = "Could not decode message"
+        
+        except Exception as e:
+            body = f"Error processing message content: {str(e)}"
+        
+        # Get additional email headers
+        headers = {}
+        for header in ['Message-ID', 'References', 'In-Reply-To', 'Return-Path', 'X-Priority']:
+            if email_message.get(header):
+                headers[header] = email_message.get(header)
+        
+        email_manager.disconnect()
+        
+        result = {
+            "id": email_id,
+            "from": email_message.get("From", "Unknown"),
+            "to": email_message.get("To", "Unknown"),
+            "cc": email_message.get("Cc", ""),
+            "bcc": email_message.get("Bcc", ""),
+            "subject": subject,
+            "date": email_message.get("Date", "Unknown"),
+            "body": body,
+            "unread": is_unread,
+            "folder": folder
+        }
+        
+        # Add HTML body if available
+        if html_body:
+            result["html_body"] = html_body
+        
+        # Add attachments if any
+        if attachments:
+            result["attachments"] = attachments
+        
+        # Add additional headers if any
+        if headers:
+            result["headers"] = headers
+        
+        return result
+        
+    except Exception as e:
+        return {"error": f"Failed to read email {email_id}: {str(e)}"}
 
 @mcp.tool()
 def get_unread_emails(folder: str = "INBOX", limit: int = 10) -> List[Dict[str, Any]]:
