@@ -673,5 +673,115 @@ def get_unread_emails(folder: str = "INBOX", limit: int = 10) -> List[Dict[str, 
     except Exception as e:
         return [{"error": str(e)}]
 
+@mcp.tool()
+def move_email(email_id: str, source_folder: str, destination_folder: str) -> Dict[str, str]:
+    """Move a single email from one folder to another"""
+    try:
+        email_manager.connect_imap()
+        
+        # Select source folder
+        email_manager.imap_connection.select(source_folder)
+        
+        # Copy the email to destination folder
+        typ, copy_result = email_manager.imap_connection.copy(email_id, destination_folder)
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to copy email {email_id} to {destination_folder}"}
+        
+        # Mark the original email as deleted
+        email_manager.imap_connection.store(email_id, '+FLAGS', '\\Deleted')
+        
+        # Expunge to actually remove the email from source folder
+        email_manager.imap_connection.expunge()
+        
+        email_manager.disconnect()
+        return {"status": "success", "message": f"Email {email_id} moved from {source_folder} to {destination_folder}"}
+        
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to move email: {str(e)}"}
+
+@mcp.tool()
+def move_emails(email_ids: List[str], source_folder: str, destination_folder: str) -> Dict[str, Any]:
+    """Move multiple emails from one folder to another"""
+    try:
+        email_manager.connect_imap()
+        
+        # Select source folder
+        email_manager.imap_connection.select(source_folder)
+        
+        moved_count = 0
+        failed_emails = []
+        
+        for email_id in email_ids:
+            try:
+                # Copy the email to destination folder
+                typ, copy_result = email_manager.imap_connection.copy(email_id, destination_folder)
+                if typ == 'OK':
+                    # Mark the original email as deleted
+                    email_manager.imap_connection.store(email_id, '+FLAGS', '\\Deleted')
+                    moved_count += 1
+                else:
+                    failed_emails.append(email_id)
+            except Exception as e:
+                failed_emails.append(email_id)
+        
+        # Expunge to actually remove the emails from source folder
+        if moved_count > 0:
+            email_manager.imap_connection.expunge()
+        
+        email_manager.disconnect()
+        
+        result = {
+            "status": "success" if moved_count > 0 else "error",
+            "moved_count": moved_count,
+            "total_emails": len(email_ids),
+            "message": f"Moved {moved_count} of {len(email_ids)} emails from {source_folder} to {destination_folder}"
+        }
+        
+        if failed_emails:
+            result["failed_emails"] = failed_emails
+            
+        return result
+        
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to move emails: {str(e)}"}
+
+@mcp.tool()
+def create_folder(folder_name: str, parent_folder: Optional[str] = None) -> Dict[str, str]:
+    """Create a new email folder/mailbox
+    
+    Args:
+        folder_name: Name of the folder to create
+        parent_folder: Parent folder path (optional). If specified, creates subfolder.
+    """
+    try:
+        email_manager.connect_imap()
+        
+        # Construct the full folder path
+        if parent_folder:
+            # Use the IMAP folder separator (usually '.' for iCloud)
+            full_folder_path = f"{parent_folder}.{folder_name}"
+        else:
+            full_folder_path = folder_name
+        
+        # Create the folder
+        typ, result = email_manager.imap_connection.create(full_folder_path)
+        
+        if typ != 'OK':
+            error_msg = result[0].decode() if result and result[0] else "Unknown error"
+            return {"status": "error", "message": f"Failed to create folder '{full_folder_path}': {error_msg}"}
+        
+        # Subscribe to the folder to make it visible in most email clients
+        try:
+            email_manager.imap_connection.subscribe(full_folder_path)
+        except:
+            # Subscribe may fail on some servers, but folder creation succeeded
+            pass
+        
+        email_manager.disconnect()
+        return {"status": "success", "message": f"Folder '{full_folder_path}' created successfully"}
+        
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to create folder: {str(e)}"}
+
 if __name__ == "__main__":
     mcp.run()
