@@ -104,7 +104,9 @@ Close and restart Claude Desktop to load the new MCP server configuration.
 
 Once configured, you can ask Claude Desktop to:
 
-- "Read my latest emails" (preserves unread status)
+- "Read my latest emails" (preserves unread status, shows preview)
+- "Read my emails with full content" (complete email bodies)
+- "Read email ID 123 in full" (complete content of specific email)
 - "Show me only my unread emails"  
 - "Send an email to john@example.com with subject 'Meeting' and message 'Hello!'"
 - "Mark email ID 123 as read"
@@ -112,6 +114,17 @@ Once configured, you can ask Claude Desktop to:
 - "Show me my email folders"
 - "Move email ID 123 from INBOX to Archive"
 - "Create a new folder called 'Projects'"
+
+### Email Content Options
+
+**Preview Mode** (default): Email bodies are truncated to 200 characters for quick scanning.
+
+**Full Content Mode**: Get complete email content including:
+- Full text and HTML body content
+- Attachment information (filename, type, size) 
+- Complete recipient details (To, CC, BCC)
+- Additional email headers
+- All content without truncation
 
 ### Unread Status Management
 
