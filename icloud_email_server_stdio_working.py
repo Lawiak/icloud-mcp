@@ -130,11 +130,15 @@ def read_emails(folder: str = "INBOX", limit: int = 5) -> List[Dict[str, Any]]:
         emails = []
         for email_id in reversed(recent_emails):
             try:
-                # Use email_id as-is for fetch (works locally)
-                typ, msg_data = email_manager.imap_connection.fetch(email_id, '(RFC822)')
-                if msg_data and msg_data[0] and msg_data[0][1]:
+                # Decode email_id and use BODY[] for reliable fetching
+                fetch_id = email_id.decode() if isinstance(email_id, bytes) else str(email_id)
+                typ, msg_data = email_manager.imap_connection.fetch(fetch_id, '(BODY[])')
+                if msg_data and len(msg_data) > 0 and isinstance(msg_data[0], tuple) and len(msg_data[0]) > 1:
                     email_body = msg_data[0][1]
-                    email_message = email.message_from_bytes(email_body)
+                    if isinstance(email_body, bytes) and len(email_body) > 10:  # Ensure we have actual content
+                        email_message = email.message_from_bytes(email_body)
+                    else:
+                        continue  # Skip this email if no valid content
                     
                     # Decode subject with proper error handling
                     subject = "No Subject"
