@@ -34,6 +34,7 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY icloud_email_server_docker.py ./
+COPY icloud_email_server_stdio_working.py ./
 COPY test_email.py ./
 
 # Set proper ownership
