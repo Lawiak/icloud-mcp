@@ -115,7 +115,14 @@ def read_emails(folder: str = "INBOX", limit: int = 5, full_content: bool = Fals
     """Read emails from specified folder. Set full_content=True to get complete email bodies without truncation."""
     try:
         email_manager.connect_imap()
-        email_manager.imap_connection.select(folder)
+        
+        # Quote folder name if it contains spaces or special characters
+        quoted_folder = _quote_folder_name(folder)
+        
+        # Select folder
+        typ, select_result = email_manager.imap_connection.select(quoted_folder)
+        if typ != 'OK':
+            return [{"error": f"Failed to select folder '{folder}'"}]
         
         # Search for all emails
         typ, messages = email_manager.imap_connection.search(None, 'ALL')
@@ -412,10 +419,19 @@ def mark_email_read(email_id: str, folder: str = "INBOX") -> Dict[str, str]:
     """Mark a specific email as read"""
     try:
         email_manager.connect_imap()
-        email_manager.imap_connection.select(folder)
+        
+        # Quote folder name if it contains spaces or special characters
+        quoted_folder = _quote_folder_name(folder)
+        
+        # Select folder
+        typ, select_result = email_manager.imap_connection.select(quoted_folder)
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to select folder '{folder}'"}
         
         # Add the \Seen flag to mark as read
-        email_manager.imap_connection.store(email_id, '+FLAGS', '\\Seen')
+        typ, store_result = email_manager.imap_connection.store(email_id, '+FLAGS', '\\Seen')
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to mark email {email_id} as read"}
         
         email_manager.disconnect()
         return {"status": "success", "message": f"Email {email_id} marked as read"}
@@ -428,10 +444,19 @@ def mark_email_unread(email_id: str, folder: str = "INBOX") -> Dict[str, str]:
     """Mark a specific email as unread"""
     try:
         email_manager.connect_imap()
-        email_manager.imap_connection.select(folder)
+        
+        # Quote folder name if it contains spaces or special characters
+        quoted_folder = _quote_folder_name(folder)
+        
+        # Select folder
+        typ, select_result = email_manager.imap_connection.select(quoted_folder)
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to select folder '{folder}'"}
         
         # Remove the \Seen flag to mark as unread
-        email_manager.imap_connection.store(email_id, '-FLAGS', '\\Seen')
+        typ, store_result = email_manager.imap_connection.store(email_id, '-FLAGS', '\\Seen')
+        if typ != 'OK':
+            return {"status": "error", "message": f"Failed to mark email {email_id} as unread"}
         
         email_manager.disconnect()
         return {"status": "success", "message": f"Email {email_id} marked as unread"}
@@ -444,7 +469,14 @@ def read_full_email(email_id: str, folder: str = "INBOX") -> Dict[str, Any]:
     """Read the complete content of a specific email without truncation"""
     try:
         email_manager.connect_imap()
-        email_manager.imap_connection.select(folder)
+        
+        # Quote folder name if it contains spaces or special characters
+        quoted_folder = _quote_folder_name(folder)
+        
+        # Select folder
+        typ, select_result = email_manager.imap_connection.select(quoted_folder)
+        if typ != 'OK':
+            return {"error": f"Failed to select folder '{folder}'"}
         
         # Fetch the specific email with full content (preserve unread status)
         typ, msg_data = email_manager.imap_connection.fetch(email_id, '(FLAGS BODY.PEEK[])')
@@ -570,7 +602,14 @@ def get_unread_emails(folder: str = "INBOX", limit: int = 10) -> List[Dict[str, 
     """Read only unread emails from specified folder"""
     try:
         email_manager.connect_imap()
-        email_manager.imap_connection.select(folder)
+        
+        # Quote folder name if it contains spaces or special characters
+        quoted_folder = _quote_folder_name(folder)
+        
+        # Select folder
+        typ, select_result = email_manager.imap_connection.select(quoted_folder)
+        if typ != 'OK':
+            return [{"error": f"Failed to select folder '{folder}'"}]
         
         # Search for unread emails only
         typ, messages = email_manager.imap_connection.search(None, 'UNSEEN')
